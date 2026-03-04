@@ -1,0 +1,18 @@
+# Core
+torch==2.7.1
+torchaudio==2.7.1
+torchvision==0.22.1
+numpy==2.3.1
+pandas==2.3.1
+scikit-learn==1.7.0
+scipy==1.16.0
+tensorboard==2.19.0
+
+# NLP / Tokenizer (BertTokenizer)
+transformers==4.53.1
+
+# Progress & I/O
+tqdm==4.67.1
+lxml==6.0.0
+
+git+https://github.com/Elcherneske/OpenMSUtils.git@develop

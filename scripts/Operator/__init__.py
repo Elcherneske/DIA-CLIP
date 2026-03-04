@@ -1,0 +1,2 @@
+from .Infer import ModelInfer
+

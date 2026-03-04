@@ -1,0 +1,8 @@
+none
+oxidation
+carbamidomethyl
+acetyl
+phosphorylation
+deamidation
+pyroglu
+pyrocarbamidomethyl
