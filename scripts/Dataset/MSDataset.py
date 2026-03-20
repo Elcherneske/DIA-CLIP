@@ -1,18 +1,5 @@
-import random
 import torch.nn as nn
-import pickle
-import os
 import torch
-from transformers import BertTokenizer
-from concurrent.futures import ThreadPoolExecutor
-from tqdm import tqdm
-import numpy as np
-import multiprocessing
-from math import ceil
-from MolecularUtils import ModificationUtils
-import tempfile
-import shutil
-import json
 
 # 配置日志
 import logging

@@ -1,17 +1,67 @@
 import os
-import pickle
 from tqdm import tqdm
-import numpy as np
-from MolecularUtils import ModificationUtils
 from .SpectraUtils import XICExtractor
 from .DIANNInfoReader import DIANNInfoReader
-from .DIANNOutReader import DIANNOutReader
 
 import logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
+
+def parse_modified_sequence(modified_sequence: str) -> tuple[str, dict[int, str]]:
+    """
+    解析带修饰标记的序列，支持多种修饰格式：
+    - PEP(Phospho)TIDE
+    - PEP(Phospho (P))TIDE
+    - PEP[Phospho (P)]TIDE(Phospho)
+    - PEP[Phospho [P]]TIDE[Phospho (P)]
+    
+    参数:
+        modified_sequence: 带修饰标记的序列
+        
+    返回:
+        原始序列和修饰信息
+    """
+    clean_sequence = ""
+    modifications = {}
+    i = 0
+    pos = 0
+    
+    while i < len(modified_sequence):
+        if i < len(modified_sequence) - 1 and modified_sequence[i+1] in ['(', '[']:
+            # 找到一个氨基酸后面跟着修饰
+            aa = modified_sequence[i]
+            clean_sequence += aa
+            pos = len(clean_sequence) - 1
+            
+            # 确定修饰的开始和结束符号
+            start_symbol = modified_sequence[i+1]
+            end_symbol = ')' if start_symbol == '(' else ']'
+            
+            # 找到完整的修饰（处理嵌套括号）
+            start = i + 2  # 跳过开始符号
+            paren_count = 1
+            j = start
+            
+            while j < len(modified_sequence) and paren_count > 0:
+                if modified_sequence[j] in ['(', '[']:
+                    paren_count += 1
+                elif modified_sequence[j] in [')', ']']:
+                    paren_count -= 1
+                j += 1
+            
+            if paren_count == 0:
+                mod = modified_sequence[start:j-1]  # 去除最外层括号
+                modifications[pos] = mod
+                i = j  # 更新索引到修饰后的位置
+                continue
+        
+        # 普通字符
+        clean_sequence += modified_sequence[i]
+        i += 1
+    
+    return clean_sequence, modifications
 
 class XICManager:
     def __init__(self, args, mzml_path):
@@ -45,7 +95,7 @@ class XICManager:
         for id, (index, peptide_info) in tqdm(enumerate(peptide_infos.iterrows()), total=len(peptide_infos), desc="Processing peptides"):
             precursor_xics, fragment_xics = xics[id]
             modified_peptide = peptide_info['peptide']
-            sequence, modification = ModificationUtils.parse_modified_sequence(modified_peptide)
+            sequence, modification = parse_modified_sequence(modified_peptide)
             modification = self._convert_uniimod_to_name(modification)
                     
             datas.append({

@@ -1,13 +1,10 @@
 import torch
 import os
-import pickle
 import numpy as np
 from tqdm import tqdm
 import pandas as pd
-from torch.utils.tensorboard import SummaryWriter
 from torch.nn import functional as F
 from .FDR import FDRUtils
-from MolecularUtils import ModificationUtils
 
 # 配置日志
 import logging
@@ -15,6 +12,25 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
+
+def format_modified_sequence(sequence: str, modifications: dict[int, str]) -> str:
+    """
+    将序列和修饰信息格式化为带修饰标记的序列
+    
+    参数:
+        sequence: 原始序列
+        modifications: 修饰信息
+        
+    返回:
+        带修饰标记的序列
+    """
+    result = ""
+    for i, aa in enumerate(sequence):
+        result += aa
+        if i in modifications:
+            result += f"({modifications[i]})"
+            
+    return result
 
 class ModelInfer():
     def __init__(self, args, model):
@@ -47,7 +63,7 @@ class ModelInfer():
         # build a map for xic data
         xic_data_map = {}
         for xic_data in xic_datas:
-            xic_data_map[ModificationUtils.format_modified_sequence(xic_data['pre']['peptide'], xic_data['pre']['modification']) + '_' + str(xic_data['pre']['charge'])] = xic_data
+            xic_data_map[format_modified_sequence(xic_data['pre']['peptide'], xic_data['pre']['modification']) + '_' + str(xic_data['pre']['charge'])] = xic_data
 
         quant_results = []
         for index, row in results_df.iterrows():

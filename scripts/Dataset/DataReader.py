@@ -10,7 +10,6 @@ import shutil
 from tqdm import tqdm
 import numpy as np
 from transformers import BertTokenizer
-from MolecularUtils import ModificationUtils
 from scipy.ndimage import gaussian_filter1d
 
 # 配置日志
@@ -22,6 +21,25 @@ logging.basicConfig(
 
 def preprocess_fn(preprocessor):
     return preprocessor.preprocess()
+
+def format_modified_sequence(sequence: str, modifications: dict[int, str]) -> str:
+    """
+    将序列和修饰信息格式化为带修饰标记的序列
+    
+    参数:
+        sequence: 原始序列
+        modifications: 修饰信息
+        
+    返回:
+        带修饰标记的序列
+    """
+    result = ""
+    for i, aa in enumerate(sequence):
+        result += aa
+        if i in modifications:
+            result += f"({modifications[i]})"
+            
+    return result
 
 class DataReader:
     def __init__(self, args, xic_datas: list):
@@ -157,7 +175,7 @@ class Preprocessor:
             peptide = data['pre']['peptide']
             modification = data['pre']['modification']
             charge = data['pre']['charge']
-            modified_peptide = ModificationUtils.format_modified_sequence(peptide, modification)
+            modified_peptide = format_modified_sequence(peptide, modification)
             peptide_ids, modification_ids = self._preprocess_peptide(peptide, modification)
             label = 1 if data['label'] == 1 else 0
 
