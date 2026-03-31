@@ -129,7 +129,6 @@ class LightTokenizer:
         add_sep: bool = True
     ) -> List[int]:
         tokens = self.tokenize_fn(text)
-        print(tokens)
         if add_cls:
             tokens = [self.cls_token] + tokens
         if add_sep:
@@ -260,14 +259,11 @@ class Preprocessor:
     def _preprocess_peptide(self, sequence: str, modification: dict):
         peptide = ' '.join(sequence)
         peptide_ids = self.peptide_tokenizer.encode(peptide, add_cls=True, add_sep=True)
-        print(peptide_ids)
         modification_str = [value for key, value in modification.items()]
         ids_tmp = self.modification_tokenizer.encode(' '.join(modification_str), add_cls=False, add_sep=False)
-        print(' '.join(modification_str))
         modification_ids = [0] * len(peptide_ids)
         for index, (key, value) in enumerate(modification.items()):
             modification_ids[key + 1] = ids_tmp[index]
-        print(modification_ids)
         return peptide_ids, modification_ids
 
     def preprocess(self):
