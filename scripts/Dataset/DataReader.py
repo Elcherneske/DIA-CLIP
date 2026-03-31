@@ -1,15 +1,9 @@
 from math import ceil
 import multiprocessing
-import os
-import pickle
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-import concurrent.futures
-import pandas as pd
 import random
-import shutil
 from tqdm import tqdm
 import numpy as np
-from transformers import BertTokenizer
+from typing import Callable, Dict, Iterable, List, Optional
 from scipy.ndimage import gaussian_filter1d
 
 # 配置日志
@@ -40,6 +34,110 @@ def format_modified_sequence(sequence: str, modifications: dict[int, str]) -> st
             result += f"({modifications[i]})"
             
     return result
+
+class LightTokenizer:
+    """
+    A lightweight tokenizer similar to Transformer tokenizers.
+
+    Features:
+    1) Load vocab from a txt file (one token per line).
+    2) Ensure [CLS] exists (and optionally other special tokens).
+    3) Convert text/tokens <-> ids.
+    """
+
+    def __init__(
+        self,
+        vocab_path: Optional[str] = None,
+        vocab_tokens: Optional[Iterable[str]] = None,
+        cls_token: str = "[CLS]",
+        unk_token: str = "[UNK]",
+        pad_token: str = "[PAD]",
+        sep_token: str = "[SEP]",
+        mask_token: str = "[MASK]",
+        tokenize_fn: Optional[Callable[[str], List[str]]] = None,
+    ):
+        self.cls_token = cls_token
+        self.unk_token = unk_token
+        self.pad_token = pad_token
+        self.sep_token = sep_token
+        self.mask_token = mask_token
+
+        self._special_tokens = [unk_token, sep_token, pad_token, cls_token, mask_token]
+
+        if vocab_tokens is not None:
+            base_tokens = [str(t).strip() for t in vocab_tokens if str(t).strip()]
+        elif vocab_path is not None:
+            base_tokens = self.load_vocab(vocab_path)
+        else:
+            base_tokens = []
+
+        # Keep order, remove duplicates.
+        seen = set()
+        ordered_tokens: List[str] = []
+        for t in base_tokens:
+            if t not in seen:
+                ordered_tokens.append(t)
+                seen.add(t)
+
+        for st in self._special_tokens:
+            if st not in seen:
+                ordered_tokens.append(st)
+                seen.add(st)
+
+        self.id_to_token: List[str] = ordered_tokens
+        self.token_to_id: Dict[str, int] = {t: i for i, t in enumerate(self.id_to_token)}
+
+        # Default tokenize behavior: whitespace split; if no spaces then char split.
+        if tokenize_fn is None:
+            self.tokenize_fn = self._default_tokenize
+        else:
+            self.tokenize_fn = tokenize_fn
+
+    @staticmethod
+    def load_vocab(vocab_path: str) -> List[str]:
+        with open(vocab_path, "r", encoding="utf-8") as f:
+            tokens = [line.strip() for line in f if line.strip()]
+        return tokens
+
+    def _default_tokenize(self, text: str) -> List[str]:
+        text = text.strip().lower()
+        if not text:
+            return []
+        if ' ' in text:
+            return text.split(' ')
+        return [text]
+
+    def add_token(self, token: str) -> int:
+        token = token.strip()
+        if not token:
+            raise ValueError("token cannot be empty")
+        if token in self.token_to_id:
+            return self.token_to_id[token]
+        new_id = len(self.id_to_token)
+        self.id_to_token.append(token)
+        self.token_to_id[token] = new_id
+        return new_id
+
+    def convert_tokens_to_ids(self, tokens: List[str]) -> List[int]:
+        unk_id = self.token_to_id[self.unk_token]
+        return [self.token_to_id.get(t, unk_id) for t in tokens]
+
+    def encode(
+        self,
+        text: str,
+        add_cls: bool = True,
+        add_sep: bool = True
+    ) -> List[int]:
+        tokens = self.tokenize_fn(text)
+        print(tokens)
+        if add_cls:
+            tokens = [self.cls_token] + tokens
+        if add_sep:
+            tokens = tokens + [self.sep_token]
+
+        ids = self.convert_tokens_to_ids(tokens)
+
+        return ids
 
 class DataReader:
     def __init__(self, args, xic_datas: list):
@@ -104,8 +202,8 @@ class Preprocessor:
     def __init__(self, args, data_chunk: list = None):
         self.RT_dim = args.get_config('Model', 'RT_dim', default=12)
         self.ion_num = args.get_config('Model', 'ion_num', default=10)
-        self.peptide_tokenizer = BertTokenizer(vocab_file=args.get_config('Database', 'peptide_vocab_path', default='./Vocab/peptide_vocab.txt'))
-        self.modification_tokenizer = BertTokenizer(vocab_file=args.get_config('Database', 'modification_vocab_path', default='./Vocab/modification_vocab.txt'))
+        self.peptide_tokenizer = LightTokenizer(vocab_path=args.get_config('Database', 'peptide_vocab_path', default='./Vocab/peptide_vocab.txt'))
+        self.modification_tokenizer = LightTokenizer(vocab_path=args.get_config('Database', 'modification_vocab_path', default='./Vocab/modification_vocab.txt'))
         self.padding_token = args.get_config('Database', 'padding_token', default=31)
         self.preprocess_smooth = args.get_config('Database', 'preprocess_smooth', default=True)
         self.data_chunk = data_chunk
@@ -161,12 +259,15 @@ class Preprocessor:
 
     def _preprocess_peptide(self, sequence: str, modification: dict):
         peptide = ' '.join(sequence)
-        peptide_ids = self.peptide_tokenizer.encode(peptide, add_special_tokens=True)
+        peptide_ids = self.peptide_tokenizer.encode(peptide, add_cls=True, add_sep=True)
+        print(peptide_ids)
         modification_str = [value for key, value in modification.items()]
-        ids_tmp = self.modification_tokenizer.encode(' '.join(modification_str), add_special_tokens=False)
+        ids_tmp = self.modification_tokenizer.encode(' '.join(modification_str), add_cls=False, add_sep=False)
+        print(' '.join(modification_str))
         modification_ids = [0] * len(peptide_ids)
         for index, (key, value) in enumerate(modification.items()):
             modification_ids[key + 1] = ids_tmp[index]
+        print(modification_ids)
         return peptide_ids, modification_ids
 
     def preprocess(self):

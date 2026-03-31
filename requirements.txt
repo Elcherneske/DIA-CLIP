@@ -8,9 +8,6 @@ scikit-learn==1.7.0
 scipy==1.16.0
 tensorboard==2.19.0
 
-# NLP / Tokenizer (BertTokenizer)
-transformers==4.53.1
-
 # Progress & I/O
 tqdm==4.67.1
 lxml==6.0.0
