@@ -31,7 +31,7 @@ def main():
 
     for mzml_path in mzml_path_list:
         # run diann
-        # run_diann(args, mzml_path)
+        run_diann(args, mzml_path)
 
         # process xic
         xic_datas = XICManager(args=args, mzml_path=mzml_path).process()
